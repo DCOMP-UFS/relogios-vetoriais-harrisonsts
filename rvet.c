@@ -10,7 +10,8 @@
  */
  
 #include <stdio.h>
-#include <string.h>  
+#include <string.h>
+#include <stdbool.h>
 #include <mpi.h>     
 
 
@@ -18,45 +19,81 @@ typedef struct Clock {
    int p[3];
 } Clock;
 
-
-void Event(int pid, Clock *clock){
-   clock->p[pid]++;   
+void Print(int pid, Clock *clock){
+   printf("Process: %d, Clock: (%d, %d, %d)\n", pid, clock->p[0], clock->p[1], clock->p[2]);
 }
 
-
-void Send(int pid, Clock *clock){
-   // TO DO
+void Event(int pid, Clock *clock, bool print){
+   clock->p[pid]++;
+   
+   if(print){
+      Print(pid, clock);
+   }
 }
 
-void Receive(int pid, Clock *clock){
-   // TO DO
-
+void Send(int pid, int pid2, Clock *clock){
+   
+   Event(pid, clock, 0);
+   
+   MPI_Send(clock, 3, MPI_INT, pid2, 0, MPI_COMM_WORLD);
+   
+   Print(pid, clock);
 }
+
+void Receive(int pid, int pid2, Clock *clock){
+   Clock received_clock;
+   
+   clock->p[pid]++;
+   
+   MPI_Recv(&received_clock, 3, MPI_INT, pid2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+   
+   for (int i = 0; i < 3; i++) {
+       clock->p[i] = (clock->p[i] > received_clock.p[i]) ? clock->p[i] : received_clock.p[i];
+   }
+   
+   Print(pid, clock);
+}
+
 
 // Representa o processo de rank 0
 void process0(){
    Clock clock = {{0,0,0}};
-   Event(0, &clock);
-   printf("Process: %d, Clock: (%d, %d, %d)\n", 0, clock.p[0], clock.p[1], clock.p[2]);
 
-   // TO DO
-
+   Event(0, &clock, 1);
+   
+   Send(0, 1, &clock);
+   
+   Receive(0, 1, &clock);
+   
+   Send(0, 2, &clock);
+   
+   Receive(0, 2, &clock);
+   
+   Send(0, 1, &clock);
+   
+   Event(0, &clock, 1);
 }
 
 // Representa o processo de rank 1
 void process1(){
    Clock clock = {{0,0,0}};
-   printf("Process: %d, Clock: (%d, %d, %d)\n", 1, clock.p[0], clock.p[1], clock.p[2]);
 
-   // TO DO
+   Send(1, 0, &clock);
+   
+   Receive(1, 0, &clock);
+   
+   Receive(1, 0, &clock);
 }
 
 // Representa o processo de rank 2
 void process2(){
    Clock clock = {{0,0,0}};
-   printf("Process: %d, Clock: (%d, %d, %d)\n", 2, clock.p[0], clock.p[1], clock.p[2]);
    
-   // TO DO
+   Event(2, &clock, 1);
+   
+   Send(2, 0, &clock);
+   
+   Receive(2, 0, &clock);
 }
 
 int main(void) {
